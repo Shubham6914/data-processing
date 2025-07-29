@@ -2,104 +2,117 @@ import json
 import os
 from typing import List, Dict
 from datetime import datetime
-from tqdm import tqdm  # For progress bar
+from tqdm import tqdm
 
 from models.data_models import MedicalArticle
 from processor.text_processor import TextProcessor
-from processor.embedding_generator import EmbeddingGenerator
-from processor.storage_handler import QdrantHandler
+from processor.storage_handler import QdrantHandlerLangChain
+from utils.logger import logger, setup_logging
 
 class MedicalDataProcessor:
     def __init__(self):
         self.text_processor = TextProcessor()
-        self.embedding_generator = EmbeddingGenerator()
-        self.storage_handler = QdrantHandler()
-        
+        self.storage_handler = QdrantHandlerLangChain()
+        self.logger = logger
+
     def setup(self):
         """Initialize storage and required setup"""
+        self.logger.info("Setting up storage handler...")
         print("Initializing Qdrant collection...")
-        self.storage_handler.create_collection()
-        
+
     def process_single_file(self, file_path: str) -> bool:
         """Process a single JSON file"""
         try:
-            # Read JSON file
             with open(file_path, 'r') as file:
                 data = json.load(file)
-            
-            # Validate data using Pydantic model
+
             article = MedicalArticle(**data)
-            
-            # Process text
+
             processed_data = self.text_processor.process_article(article)
-            
-            # Generate embeddings
-            qdrant_data = self.embedding_generator.generate_embeddings(processed_data)
-            
-            # Store in Qdrant
-            self.storage_handler.store_document(qdrant_data)
-            
+            print(f"processed_data\n: {processed_data}")
+
+            self.storage_handler.store_document(processed_data)
+
+            self.logger.info(f"Successfully processed file: {file_path}")
             return True
-            
+
         except Exception as e:
-            print(f"Error processing file {file_path}: {e}")
+            error_msg = f"Error processing file {file_path}: {e}"
+            print(error_msg)
+            self.logger.error(error_msg)
             return False
 
     def process_directory(self, directory_path: str, limit: int = 1000):
-        """Process all JSON files in directory"""
-        # Get all JSON files
+        """Process JSON files in directory up to the given limit with progress and logging"""
+
         json_files = [f for f in os.listdir(directory_path) if f.endswith('.json')]
-        
         if limit:
             json_files = json_files[:limit]
-        
-        print(f"Processing {len(json_files)} files...")
-        
-        # Process files with progress bar
+
+        total_files = len(json_files)
+        print(f"Processing {total_files} files...")
+
         successful = 0
         failed = 0
-        
-        for file in tqdm(json_files):
+
+        for idx, file in enumerate(json_files, start=1):
             file_path = os.path.join(directory_path, file)
-            if self.process_single_file(file_path):
+            success = self.process_single_file(file_path)
+            if success:
                 successful += 1
             else:
                 failed += 1
-        
+
+            remaining = total_files - idx
+            status_msg = (f"Processed {idx}/{total_files} files. "
+                          f"Success: {successful}, Failed: {failed}, Remaining: {remaining}")
+            print(status_msg)
+            self.logger.info(status_msg)
+
+        print("\nAll files processed.")
+        summary_msg = f"Total files: {total_files}, Successful: {successful}, Failed: {failed}"
+        print(summary_msg)
+        self.logger.info(summary_msg)
+
         return {
-            "total": len(json_files),
+            "total": total_files,
             "successful": successful,
             "failed": failed
         }
-   
+
+
 def main():
-    # Initialize processor
+    setup_logging()
     processor = MedicalDataProcessor()
-    
-    # Setup storage
     processor.setup()
-    
-    # Your specific JSON files directory
+
+    # TODO: Set your data directory path here
     data_directory = "/home/cyberium/shubham/cancerguru-crawler/ONCOLOGY_CATEGORIES/CANCER_CATEGORIES/Breast cancer"
-    
-    # Verify directory exists and contains JSON files
+
+    # TODO: Set limit on number of files to process
+    limit = 1
+
     if not os.path.exists(data_directory):
         print(f"Error: Directory not found: {data_directory}")
-        exit()
-        
+        logger.error(f"Directory not found: {data_directory}")
+        return
+
     json_files = [f for f in os.listdir(data_directory) if f.endswith('.json')]
-    print(f"Found {len(json_files)} JSON files in directory")
-    
-    # Process files
+    if not json_files:
+        print(f"No JSON files found in directory: {data_directory}")
+        logger.error(f"No JSON files found in directory: {data_directory}")
+        return
+
+    print(f"Found {len(json_files)} JSON files in directory.")
+
     print("Starting data processing...")
-    results = processor.process_directory(data_directory)
-    
-    # Print results
+    results = processor.process_directory(data_directory, limit=limit)
+
     print("\nProcessing Complete!")
     print(f"Total files processed: {results['total']}")
     print(f"Successful: {results['successful']}")
     print(f"Failed: {results['failed']}")
 
+
 if __name__ == "__main__":
     main()
-    

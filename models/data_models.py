@@ -1,5 +1,5 @@
-from pydantic import BaseModel
-from typing import Optional, List, Dict
+from pydantic import BaseModel, validator
+from typing import Optional, List, Dict, Union
 from datetime import datetime
 #  Pydantic models for data validation before processing
 class JournalInfo(BaseModel):
@@ -34,9 +34,21 @@ class Content(BaseModel):
     authors: List[Author]
     keywords: List[str] = []
 
+# Update the Metadata model in data_models.py
+class Reference(BaseModel):
+    citation: str
+    id: str
+
 class Metadata(BaseModel):
     doi: Optional[str]
-    references: List[str] = []
+    references: List[Union[str, Reference]] = []  # Accept both string and Reference object
+
+    @validator('references', pre=True)
+    def validate_references(cls, v):
+        if isinstance(v, list):
+            return [ref['citation'] if isinstance(ref, dict) else ref for ref in v]
+        return v
+
 
 class MedicalArticle(BaseModel):
     basic_info: BasicInfo

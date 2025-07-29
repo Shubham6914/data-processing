@@ -12,20 +12,13 @@ class TextProcessor:
             r"[A-Z][A-Za-z-]+ (cell|receptor|protein|gene)",
         ]
     
+    # Fix the clean_text method in TextProcessor class
     def clean_text(self, text: str) -> str:
         """Clean and normalize text"""
-        # Remove special characters but keep medical terms intact
-        text = re.sub(r'[^\w\s-()]', ' ', text)
-        # Remove extra whitespace
+        # Fix the regex pattern
+        text = re.sub(r'[^\w\s()-]', ' ', text)  # Changed the pattern
         text = re.sub(r'\s+', ' ', text)
-        # Convert to lowercase but preserve acronyms
-        words = text.split()
-        cleaned_words = [
-            word if word.isupper() and len(word) <= 5  # Keep acronyms
-            else word.lower()
-            for word in words
-        ]
-        return ' '.join(cleaned_words)
+        return text.strip()
 
     def process_title(self, title: str) -> str:
         """Process article title"""
@@ -33,19 +26,18 @@ class TextProcessor:
         cleaned_title = self.clean_text(title)
         return cleaned_title
 
-    def process_abstract(self, abstract_sections: List[Dict]) -> str:
+    def process_abstract(self, abstract_sections) -> str:
         """Process abstract sections"""
         # Combine all abstract sections
         full_abstract = ' '.join(
-            section['text'] for section in abstract_sections
-            if section.get('text')
+            getattr(section, 'text', '') for section in abstract_sections
+            if getattr(section, 'text', None)
         )
         return self.clean_text(full_abstract)
 
     def combine_text(self, title: str, abstract: str) -> str:
         """Combine title and abstract for embedding"""
-        # Give more weight to title by repeating it
-        combined = f"{title} {title} {abstract}"
+        combined = f"{title} {abstract}"
         return combined.strip()
 
     def extract_medical_terms(self, text: str) -> List[str]:

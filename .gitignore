@@ -1,1 +1,3 @@
 /myvenv
+logs/
+__pycache__/
