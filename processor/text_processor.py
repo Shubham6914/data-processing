@@ -11,7 +11,9 @@ class TextProcessor:
             r"[A-Z][A-Za-z-]+-[0-9]+",  # For patterns like TGF-beta-1
             r"[A-Z][A-Za-z-]+ (cell|receptor|protein|gene)",
         ]
-    
+
+        self.STOPWORDS = {"The", "A", "An", "In", "On", "Of", "For", "And", "Or", "But"}
+
     # Fix the clean_text method in TextProcessor class
     def clean_text(self, text: str) -> str:
         """Clean and normalize text"""
@@ -39,21 +41,17 @@ class TextProcessor:
         """Combine title and abstract for embedding"""
         combined = f"{title} {abstract}"
         return combined.strip()
-
+    
     def extract_medical_terms(self, text: str) -> List[str]:
-        """Extract key medical terms"""
         medical_terms = set()
-        
-        # Extract terms based on patterns
         for pattern in self.medical_patterns:
             matches = re.finditer(pattern, text)
             for match in matches:
                 medical_terms.add(match.group())
-        
-        # Extract capitalized terms (potential medical entities)
         capitalized_terms = re.findall(r'\b[A-Z][A-Za-z-]+(?:\s+[A-Z][A-Za-z-]+)*', text)
-        medical_terms.update(capitalized_terms)
-        
+        for term in capitalized_terms:
+            if term not in self.STOPWORDS and len(term) > 2:  # Simple filters
+                medical_terms.add(term)
         return list(medical_terms)
 
     def process_article(self, article: MedicalArticle) -> Dict:
